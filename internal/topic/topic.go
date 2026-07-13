@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/compozy/kb/internal/config"
@@ -19,14 +21,15 @@ import (
 )
 
 const (
-	claudeTemplatePath       = "assets/topic-claude-template.md"
-	conceptIndexTemplatePath = "assets/concept-index-template.md"
-	dashboardTemplatePath    = "assets/dashboard-template.md"
-	logTemplatePath          = "assets/log-template.md"
-	okfClaudeTemplatePath    = "assets/okf-claude-template.md"
-	sourceIndexTemplatePath  = "assets/source-index-template.md"
-	topicMarkerFile          = "CLAUDE.md"
-	topicMetadataFileName    = "topic.yaml"
+	claudeTemplatePath                         = "assets/topic-claude-template.md"
+	conceptIndexTemplatePath                   = "assets/concept-index-template.md"
+	dashboardTemplatePath                      = "assets/dashboard-template.md"
+	logTemplatePath                            = "assets/log-template.md"
+	okfClaudeTemplatePath                      = "assets/okf-claude-template.md"
+	sourceIndexTemplatePath                    = "assets/source-index-template.md"
+	topicMarkerFile                            = "CLAUDE.md"
+	topicMetadataFileName                      = "topic.yaml"
+	windowsErrorPrivilegeNotHeld syscall.Errno = 1314
 )
 
 var (
@@ -417,6 +420,15 @@ func topicGlobsForVault(vaultPath string) ([]string, error) {
 }
 
 func ensureDirectory(path string) error {
+	if info, err := os.Stat(path); err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("%q is not a directory", path)
+		}
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat %q: %w", path, err)
+	}
+
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return fmt.Errorf("create %q: %w", path, err)
 	}
@@ -456,8 +468,12 @@ func EnsureCurrentSkeleton(topicPath string) error {
 	if err := ensureTopicLog(topicPath); err != nil {
 		return err
 	}
-	if err := ensureAgentsFile(topicPath); err != nil {
-		return err
+	if _, err := os.Lstat(filepath.Join(topicPath, "CLAUDE.md")); err == nil {
+		if err := ensureAgentsFile(topicPath); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("lstat CLAUDE.md: %w", err)
 	}
 
 	return nil
@@ -665,6 +681,12 @@ func ensureAgentsSymlink(topicPath string) error {
 		return fmt.Errorf("remove existing AGENTS.md: %w", err)
 	}
 	if err := os.Symlink("CLAUDE.md", agentsPath); err != nil {
+		if isWindowsSymlinkPrivilegeError(err) {
+			if copyErr := copyClaudeToAgents(topicPath, agentsPath); copyErr != nil {
+				return fmt.Errorf("create AGENTS.md fallback file: %w", copyErr)
+			}
+			return nil
+		}
 		return fmt.Errorf("create AGENTS.md symlink: %w", err)
 	}
 
@@ -680,9 +702,32 @@ func ensureAgentsFile(topicPath string) error {
 	}
 
 	if err := os.Symlink("CLAUDE.md", agentsPath); err != nil {
+		if isWindowsSymlinkPrivilegeError(err) {
+			if copyErr := copyClaudeToAgents(topicPath, agentsPath); copyErr != nil {
+				return fmt.Errorf("create AGENTS.md fallback file: %w", copyErr)
+			}
+			return nil
+		}
 		return fmt.Errorf("create AGENTS.md symlink: %w", err)
 	}
 	return nil
+}
+
+func copyClaudeToAgents(topicPath string, agentsPath string) error {
+	claudePath := filepath.Join(topicPath, "CLAUDE.md")
+	content, err := os.ReadFile(claudePath)
+	if err != nil {
+		return fmt.Errorf("read %q: %w", claudePath, err)
+	}
+	if err := os.WriteFile(agentsPath, content, 0o644); err != nil {
+		return fmt.Errorf("write %q: %w", agentsPath, err)
+	}
+	return nil
+}
+
+func isWindowsSymlinkPrivilegeError(err error) bool {
+	var errno syscall.Errno
+	return runtime.GOOS == "windows" && errors.As(err, &errno) && errno == windowsErrorPrivilegeNotHeld
 }
 
 func ensureTopicLog(topicPath string) error {

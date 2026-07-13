@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -744,91 +744,127 @@ func writeFakeYTDLP(t *testing.T, options fakeYTDLPOptions) (string, string) {
 	t.Helper()
 
 	dir := t.TempDir()
-	scriptPath := filepath.Join(dir, "yt-dlp")
 	logPath := filepath.Join(dir, "args.log")
-
-	var builder strings.Builder
-	builder.WriteString("#!/bin/sh\n")
-	builder.WriteString("set -eu\n")
-	builder.WriteString("LOG_PATH=" + shellQuoteYTDLPTest(logPath) + "\n")
-	builder.WriteString("for arg in \"$@\"; do printf '%s\\n' \"$arg\" >> \"$LOG_PATH\"; done\n")
-	builder.WriteString("printf '%s\\n' '---' >> \"$LOG_PATH\"\n")
-	builder.WriteString("case \" $* \" in\n")
-	builder.WriteString("  *\" --dump-single-json \"*)\n")
-	if options.metadataErr != "" {
-		builder.WriteString("    printf '%s\\n' " + shellQuoteYTDLPTest(options.metadataErr) + " >&2\n")
+	configPath := filepath.Join(dir, "yt-dlp.json")
+	config, err := json.Marshal(struct {
+		MetadataJSON string
+		MetadataExit int
+		MetadataErr  string
+		CaptionExt   string
+		CaptionBody  string
+		CaptionExit  int
+		CaptionErr   string
+		AudioExt     string
+		AudioBody    string
+		AudioExit    int
+		AudioErr     string
+		LogPath      string
+	}{options.metadataJSON, options.metadataExit, options.metadataErr, options.captionExt, options.captionBody, options.captionExit, options.captionErr, options.audioExt, options.audioBody, options.audioExit, options.audioErr, logPath})
+	if err != nil {
+		t.Fatalf("write fake yt-dlp config: %v", err)
 	}
-	if options.metadataExit != 0 {
-		builder.WriteString("    exit " + strconv.Itoa(options.metadataExit) + "\n")
-	} else {
-		builder.WriteString("    cat <<'JSON'\n")
-		builder.WriteString(options.metadataJSON)
-		if !strings.HasSuffix(options.metadataJSON, "\n") {
-			builder.WriteString("\n")
-		}
-		builder.WriteString("JSON\n")
+	if err := os.WriteFile(configPath, config, 0o644); err != nil {
+		t.Fatalf("write fake yt-dlp config: %v", err)
 	}
-	builder.WriteString("    ;;\n")
-	builder.WriteString("  *\" --extract-audio \"*)\n")
-	if options.audioErr != "" {
-		builder.WriteString("    printf '%s\\n' " + shellQuoteYTDLPTest(options.audioErr) + " >&2\n")
-	}
-	if options.audioExit != 0 {
-		builder.WriteString("    exit " + strconv.Itoa(options.audioExit) + "\n")
-	} else if options.audioExt != "" {
-		builder.WriteString("    out_dir=\"\"\n")
-		builder.WriteString("    previous=\"\"\n")
-		builder.WriteString("    for arg in \"$@\"; do\n")
-		builder.WriteString("      if [ \"$previous\" = \"--paths\" ]; then out_dir=${arg#home:}; fi\n")
-		builder.WriteString("      previous=\"$arg\"\n")
-		builder.WriteString("    done\n")
-		builder.WriteString("    [ -n \"$out_dir\" ] || exit 7\n")
-		builder.WriteString("    mkdir -p \"$out_dir\"\n")
-		builder.WriteString("    cat > \"$out_dir/dQw4w9WgXcQ." + options.audioExt + "\" <<'AUDIO'\n")
-		builder.WriteString(options.audioBody)
-		if !strings.HasSuffix(options.audioBody, "\n") {
-			builder.WriteString("\n")
-		}
-		builder.WriteString("AUDIO\n")
-	}
-	builder.WriteString("    ;;\n")
-	builder.WriteString("  *)\n")
-	if options.captionErr != "" {
-		builder.WriteString("    printf '%s\\n' " + shellQuoteYTDLPTest(options.captionErr) + " >&2\n")
-	}
-	if options.captionExit != 0 {
-		builder.WriteString("    exit " + strconv.Itoa(options.captionExit) + "\n")
-	} else if options.captionExt != "" {
-		builder.WriteString("    out_dir=\"\"\n")
-		builder.WriteString("    previous=\"\"\n")
-		builder.WriteString("    for arg in \"$@\"; do\n")
-		builder.WriteString("      if [ \"$previous\" = \"--paths\" ]; then out_dir=${arg#home:}; fi\n")
-		builder.WriteString("      previous=\"$arg\"\n")
-		builder.WriteString("    done\n")
-		builder.WriteString("    [ -n \"$out_dir\" ] || exit 7\n")
-		builder.WriteString("    mkdir -p \"$out_dir\"\n")
-		builder.WriteString("    cat > \"$out_dir/dQw4w9WgXcQ.en." + options.captionExt + "\" <<'CAPTION'\n")
-		builder.WriteString(options.captionBody)
-		if !strings.HasSuffix(options.captionBody, "\n") {
-			builder.WriteString("\n")
-		}
-		builder.WriteString("CAPTION\n")
-	}
-	builder.WriteString("    ;;\n")
-	builder.WriteString("esac\n")
-
-	if err := os.WriteFile(scriptPath, []byte(builder.String()), 0o755); err != nil {
-		t.Fatalf("write fake yt-dlp: %v", err)
-	}
-	return scriptPath, logPath
+	return configPath, logPath
 }
 
 func newFakeYTDLPBackend(scriptPath string, cfg BackendConfig, retry retryPolicy) *ytDLPBackend {
 	backend := newYTDLPBackend(cfg, retry)
 	backend.lookPath = func(string) (string, error) {
-		return scriptPath, nil
+		return os.Args[0], nil
+	}
+	backend.commandContext = func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, os.Args[0], append([]string{"-test.run=^TestFakeYTDLPProcess$", "--", scriptPath}, args...)...)
 	}
 	return backend
+}
+
+func TestFakeYTDLPProcess(t *testing.T) {
+	separator := slices.Index(os.Args, "--")
+	if separator < 0 || len(os.Args) < separator+2 {
+		return
+	}
+	var c struct {
+		MetadataJSON string
+		MetadataExit int
+		MetadataErr  string
+		CaptionExt   string
+		CaptionBody  string
+		CaptionExit  int
+		CaptionErr   string
+		AudioExt     string
+		AudioBody    string
+		AudioExit    int
+		AudioErr     string
+		LogPath      string
+	}
+	data, err := os.ReadFile(os.Args[separator+1])
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "read fake yt-dlp config: %v\n", err)
+		os.Exit(2)
+	}
+	if err := json.Unmarshal(data, &c); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "parse fake yt-dlp config: %v\n", err)
+		os.Exit(2)
+	}
+	args := os.Args[separator+2:]
+	f, err := os.OpenFile(c.LogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "open fake yt-dlp log: %v\n", err)
+		os.Exit(2)
+	}
+	for _, a := range args {
+		_, _ = fmt.Fprintln(f, a)
+	}
+	_, _ = fmt.Fprintln(f, "---")
+	_ = f.Close()
+	kind, ext, body, exitCode, stderr := "caption", c.CaptionExt, c.CaptionBody, c.CaptionExit, c.CaptionErr
+	if slices.Contains(args, "--dump-single-json") {
+		kind, body, exitCode, stderr = "metadata", c.MetadataJSON, c.MetadataExit, c.MetadataErr
+	} else if slices.Contains(args, "--extract-audio") {
+		kind, ext, body, exitCode, stderr = "audio", c.AudioExt, c.AudioBody, c.AudioExit, c.AudioErr
+	}
+	if stderr != "" {
+		_, _ = fmt.Fprintln(os.Stderr, stderr)
+	}
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
+	if kind == "metadata" {
+		_, _ = fmt.Fprintln(os.Stdout, body)
+		os.Exit(0)
+	}
+	if body != "" && !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	outputDir := ""
+	for i, a := range args {
+		if i > 0 && args[i-1] == "--paths" {
+			outputDir = strings.TrimPrefix(a, "home:")
+			break
+		}
+	}
+	if outputDir == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "fake yt-dlp invocation is missing --paths")
+		os.Exit(2)
+	}
+	if ext == "" {
+		os.Exit(0)
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "create fake yt-dlp output directory: %v\n", err)
+		os.Exit(2)
+	}
+	name := "dQw4w9WgXcQ." + ext
+	if kind == "caption" {
+		name = "dQw4w9WgXcQ.en." + ext
+	}
+	if err := os.WriteFile(filepath.Join(outputDir, name), []byte(body), 0o644); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "write fake yt-dlp output: %v\n", err)
+		os.Exit(2)
+	}
+	os.Exit(0)
 }
 
 func readYTDLPInvocationLog(t *testing.T, path string) [][]string {
@@ -912,8 +948,4 @@ func assertBoolPtr(t *testing.T, got *bool, want bool) {
 	if *got != want {
 		t.Fatalf("value = %t, want %t", *got, want)
 	}
-}
-
-func shellQuoteYTDLPTest(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
