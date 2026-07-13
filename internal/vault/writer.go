@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/compozy/kb/internal/frontmatter"
 	"github.com/compozy/kb/internal/models"
@@ -669,10 +670,10 @@ func ensureAgentsSymlink(topicPath string) error {
 		return fmt.Errorf("remove existing agents file: %w", err)
 	}
 	if err := os.Symlink("CLAUDE.md", agentsPath); err != nil {
-		if runtime.GOOS == "windows" {
+		if isWindowsSymlinkPrivilegeError(err) {
 			claudePath := filepath.Join(topicPath, "CLAUDE.md")
 			content, copyErr := os.ReadFile(claudePath)
-			if copyErr != nil && !errors.Is(copyErr, os.ErrNotExist) {
+			if copyErr != nil {
 				return fmt.Errorf("read %q for agents fallback: %w", claudePath, copyErr)
 			}
 			if copyErr := os.WriteFile(agentsPath, content, 0o644); copyErr != nil {
@@ -684,6 +685,11 @@ func ensureAgentsSymlink(topicPath string) error {
 	}
 
 	return nil
+}
+
+func isWindowsSymlinkPrivilegeError(err error) bool {
+	var errno syscall.Errno
+	return runtime.GOOS == "windows" && errors.As(err, &errno) && errno == syscall.Errno(1314)
 }
 
 func ensureTopicGitkeeps(topicPath string) error {

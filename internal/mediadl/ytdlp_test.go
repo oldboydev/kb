@@ -760,7 +760,10 @@ func writeFakeYTDLP(t *testing.T, options fakeYTDLPOptions) (string, string) {
 		AudioErr     string
 		LogPath      string
 	}{options.metadataJSON, options.metadataExit, options.metadataErr, options.captionExt, options.captionBody, options.captionExit, options.captionErr, options.audioExt, options.audioBody, options.audioExit, options.audioErr, logPath})
-	if err != nil || os.WriteFile(configPath, config, 0o644) != nil {
+	if err != nil {
+		t.Fatalf("write fake yt-dlp config: %v", err)
+	}
+	if err := os.WriteFile(configPath, config, 0o644); err != nil {
 		t.Fatalf("write fake yt-dlp config: %v", err)
 	}
 	return configPath, logPath

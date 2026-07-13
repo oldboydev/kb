@@ -731,6 +731,10 @@ func TestFakeQMDProcess(t *testing.T) {
 	data, _ := os.ReadFile(os.Args[separator+1])
 	_ = json.Unmarshal(data, &c)
 	args := os.Args[separator+2:]
+	if len(args) == 0 || (args[0] == "--index" && len(args) < 3) {
+		_, _ = fmt.Fprintln(os.Stderr, "invalid fake QMD invocation")
+		os.Exit(2)
+	}
 	if c.LogPath != "" {
 		f, _ := os.OpenFile(c.LogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		for _, a := range args {
