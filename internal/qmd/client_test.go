@@ -736,7 +736,11 @@ func TestFakeQMDProcess(t *testing.T) {
 		os.Exit(2)
 	}
 	if c.LogPath != "" {
-		f, _ := os.OpenFile(c.LogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		f, err := os.OpenFile(c.LogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "open fake QMD log: %v\n", err)
+			os.Exit(2)
+		}
 		for _, a := range args {
 			_, _ = fmt.Fprintln(f, a)
 		}

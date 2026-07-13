@@ -7,7 +7,7 @@
 ### Crie e mantenha bases de conhecimento organizadas por tópico.
 
 [![Licença MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/pedronauck/kodebase-go/ci.yaml?branch=main&label=CI)](https://github.com/pedronauck/kodebase-go/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/compozy/kb/ci.yaml?branch=main&label=CI)](https://github.com/compozy/kb/actions)
 [![Go](https://img.shields.io/badge/Go-1.24-00ADD8.svg)](https://go.dev/)
 
 [Instalação](#instalação) &#8226; [Em ação](#veja-em-ação) &#8226; [Recursos](#recursos) &#8226; [Comandos](#comandos) &#8226; [Contribuição](#contribuindo)
@@ -509,8 +509,8 @@ Veja [`config.example.toml`](config.example.toml) para o esquema TOML completo.
 **Pré-requisito:** [Go](https://go.dev) >= 1.24
 
 ```bash
-git clone https://github.com/pedronauck/kodebase-go.git
-cd kodebase-go
+git clone https://github.com/compozy/kb.git
+cd kb
 make verify    # format + lint + test + build + boundaries
 ```
 
@@ -536,7 +536,7 @@ O `kb` usa licença MIT e é desenvolvido abertamente. Contribuições de todos 
 - **Conversores de arquivo** — adicione suporte a novos formatos no registro de conversores.
 - **Novos detectores de code smell** — o motor de métricas foi feito para ser estendido.
 - **Modelos de artigo wiki** — artigos iniciais melhores geram vaults melhores.
-- **Bugs e sugestões** — [abra uma issue](https://github.com/pedronauck/kodebase-go/issues), nós lemos todas.
+- **Bugs e sugestões** — [abra uma issue](https://github.com/compozy/kb/issues), nós lemos todas.
 
 Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para a preparação do ambiente e as diretrizes.
 

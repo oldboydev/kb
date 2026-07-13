@@ -7,7 +7,7 @@
 ### Build and maintain topic-based knowledge bases.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/pedronauck/kodebase-go/ci.yaml?branch=main&label=CI)](https://github.com/pedronauck/kodebase-go/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/compozy/kb/ci.yaml?branch=main&label=CI)](https://github.com/compozy/kb/actions)
 [![Go](https://img.shields.io/badge/Go-1.24-00ADD8.svg)](https://go.dev/)
 
 [Install](#install) &#8226; [See It Work](#see-it-work) &#8226; [Features](#features) &#8226; [Commands](#commands) &#8226; [Contributing](#contributing)
@@ -526,8 +526,8 @@ See [`config.example.toml`](config.example.toml) for the full TOML schema.
 **Prerequisites:** [Go](https://go.dev) >= 1.24
 
 ```bash
-git clone https://github.com/pedronauck/kodebase-go.git
-cd kodebase-go
+git clone https://github.com/compozy/kb.git
+cd kb
 make verify    # format + lint + test + build + boundaries
 ```
 
@@ -553,7 +553,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for code style, testing requirements, and
 - **File converters** -- Add support for new file formats in the converter registry
 - **New code smell detectors** -- The metrics engine is designed to be extended
 - **Wiki article templates** -- Better starter articles mean better vaults out of the box
-- **Bug reports and feature requests** -- [Open an issue](https://github.com/pedronauck/kodebase-go/issues), we read them all
+- **Bug reports and feature requests** -- [Open an issue](https://github.com/compozy/kb/issues), we read them all
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
