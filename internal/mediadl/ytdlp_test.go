@@ -799,8 +799,15 @@ func TestFakeYTDLPProcess(t *testing.T) {
 		AudioErr     string
 		LogPath      string
 	}
-	data, _ := os.ReadFile(os.Args[separator+1])
-	_ = json.Unmarshal(data, &c)
+	data, err := os.ReadFile(os.Args[separator+1])
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "read fake yt-dlp config: %v\n", err)
+		os.Exit(2)
+	}
+	if err := json.Unmarshal(data, &c); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "parse fake yt-dlp config: %v\n", err)
+		os.Exit(2)
+	}
 	args := os.Args[separator+2:]
 	f, err := os.OpenFile(c.LogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -831,17 +838,31 @@ func TestFakeYTDLPProcess(t *testing.T) {
 	if body != "" && !strings.HasSuffix(body, "\n") {
 		body += "\n"
 	}
+	outputDir := ""
 	for i, a := range args {
 		if i > 0 && args[i-1] == "--paths" {
-			dir := strings.TrimPrefix(a, "home:")
-			_ = os.MkdirAll(dir, 0o755)
-			name := "dQw4w9WgXcQ." + ext
-			if kind == "caption" {
-				name = "dQw4w9WgXcQ.en." + ext
-			}
-			_ = os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
+			outputDir = strings.TrimPrefix(a, "home:")
 			break
 		}
+	}
+	if outputDir == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "fake yt-dlp invocation is missing --paths")
+		os.Exit(2)
+	}
+	if ext == "" {
+		os.Exit(0)
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "create fake yt-dlp output directory: %v\n", err)
+		os.Exit(2)
+	}
+	name := "dQw4w9WgXcQ." + ext
+	if kind == "caption" {
+		name = "dQw4w9WgXcQ.en." + ext
+	}
+	if err := os.WriteFile(filepath.Join(outputDir, name), []byte(body), 0o644); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "write fake yt-dlp output: %v\n", err)
+		os.Exit(2)
 	}
 	os.Exit(0)
 }

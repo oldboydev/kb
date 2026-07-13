@@ -728,8 +728,15 @@ func TestFakeQMDProcess(t *testing.T) {
 		return
 	}
 	var c fakeQMDOptions
-	data, _ := os.ReadFile(os.Args[separator+1])
-	_ = json.Unmarshal(data, &c)
+	data, err := os.ReadFile(os.Args[separator+1])
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "read fake QMD config: %v\n", err)
+		os.Exit(2)
+	}
+	if err := json.Unmarshal(data, &c); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "parse fake QMD config: %v\n", err)
+		os.Exit(2)
+	}
 	args := os.Args[separator+2:]
 	if len(args) == 0 || (args[0] == "--index" && len(args) < 3) {
 		_, _ = fmt.Fprintln(os.Stderr, "invalid fake QMD invocation")
