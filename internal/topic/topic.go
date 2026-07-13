@@ -21,14 +21,15 @@ import (
 )
 
 const (
-	claudeTemplatePath       = "assets/topic-claude-template.md"
-	conceptIndexTemplatePath = "assets/concept-index-template.md"
-	dashboardTemplatePath    = "assets/dashboard-template.md"
-	logTemplatePath          = "assets/log-template.md"
-	okfClaudeTemplatePath    = "assets/okf-claude-template.md"
-	sourceIndexTemplatePath  = "assets/source-index-template.md"
-	topicMarkerFile          = "CLAUDE.md"
-	topicMetadataFileName    = "topic.yaml"
+	claudeTemplatePath                         = "assets/topic-claude-template.md"
+	conceptIndexTemplatePath                   = "assets/concept-index-template.md"
+	dashboardTemplatePath                      = "assets/dashboard-template.md"
+	logTemplatePath                            = "assets/log-template.md"
+	okfClaudeTemplatePath                      = "assets/okf-claude-template.md"
+	sourceIndexTemplatePath                    = "assets/source-index-template.md"
+	topicMarkerFile                            = "CLAUDE.md"
+	topicMetadataFileName                      = "topic.yaml"
+	windowsErrorPrivilegeNotHeld syscall.Errno = 1314
 )
 
 var (
@@ -726,7 +727,7 @@ func copyClaudeToAgents(topicPath string, agentsPath string) error {
 
 func isWindowsSymlinkPrivilegeError(err error) bool {
 	var errno syscall.Errno
-	return runtime.GOOS == "windows" && errors.As(err, &errno) && errno == syscall.Errno(1314)
+	return runtime.GOOS == "windows" && errors.As(err, &errno) && errno == windowsErrorPrivilegeNotHeld
 }
 
 func ensureTopicLog(topicPath string) error {

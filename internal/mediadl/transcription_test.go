@@ -107,7 +107,9 @@ func main() { out := filepath.Dir(os.Args[len(os.Args)-1]); _ = os.MkdirAll(out,
 `), 0o644); err != nil {
 		t.Fatalf("write fake ffmpeg source: %v", err)
 	}
-	if output, err := exec.Command("go", "build", "-o", ffmpegPath, ffmpegSource).CombinedOutput(); err != nil {
+	buildCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if output, err := exec.CommandContext(buildCtx, "go", "build", "-o", ffmpegPath, ffmpegSource).CombinedOutput(); err != nil {
 		t.Fatalf("build fake ffmpeg: %v\n%s", err, output)
 	}
 	stt := &stubSTTClient{
